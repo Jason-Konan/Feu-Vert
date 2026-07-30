@@ -299,7 +299,7 @@ export default function Home() {
 
             <div className="mt-9 flex flex-col gap-4 sm:flex-row">
               <Link
-                href="/inscription"
+                href="/sign-up"
                 className="group inline-flex items-center justify-center gap-2 rounded-full bg-[#235C43] px-8 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#1B4933] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#B98A2E]"
               >
                 Démarrer gratuitement
@@ -730,7 +730,7 @@ export default function Home() {
               ))}
             </ul>
             <Link
-              href="/inscription"
+              href="/sign-up"
               className="group mt-8 inline-flex items-center gap-2 rounded-full bg-[#1B1D1F] px-7 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#235C43]"
             >
               Commencer à réviser
@@ -969,7 +969,7 @@ export default function Home() {
                   ))}
                 </ul>
                 <Link
-                  href="/inscription"
+                  href="/sign-up"
                   className="mt-8 block rounded-full border border-slate-300 px-6 py-3 text-center text-sm font-semibold text-slate-900 transition-colors hover:bg-slate-50"
                 >
                   Commencer gratuitement
@@ -1007,7 +1007,7 @@ export default function Home() {
                   ))}
                 </ul>
                 <Link
-                  href="/inscription?offre=premium"
+                  href="/sign-up?offre=premium"
                   className="mt-8 block rounded-full bg-[#235C43] px-6 py-3 text-center text-sm font-semibold text-white transition-colors hover:bg-[#1B4933]"
                 >
                   Passer en Premium
@@ -1030,7 +1030,7 @@ export default function Home() {
             de questions dès aujourd&apos;hui.
           </p>
           <Link
-            href="/inscription"
+            href="/sign-up"
             className="group mt-8 inline-flex items-center gap-2 rounded-full bg-[#1B1D1F] px-8 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#235C43]"
           >
             Créer mon compte gratuit
