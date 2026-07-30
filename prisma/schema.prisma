@@ -1,0 +1,154 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+model User {
+  id            String    @id
+  name          String
+  email         String
+  emailVerified Boolean
+  image         String?
+  createdAt     DateTime
+  updatedAt     DateTime
+  sessions      Session[]
+  accounts      Account[]
+
+// Relation ajoutée : historique des essais de test de l'utilisateur
+  quizAttempts  QuizAttempt[]
+role String?
+	banned Boolean?
+	banReason String?
+	banExpires DateTime? @db.Timestamptz(3)
+
+
+  // Un utilisateur a au plus UN abonnement actif à la fois, mais peut
+  // avoir plusieurs paiements dans son historique (renouvellements).
+  subscription  Subscription?
+  payments      Payment[]
+
+  @@unique([email])
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String
+  createdAt DateTime
+  updatedAt DateTime
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+impersonatedBy String?
+
+  @@unique([token])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime
+  updatedAt             DateTime
+
+  @@map("account")
+}
+
+model Verification {
+  id         String    @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime?
+  updatedAt  DateTime?
+
+  @@map("verification")
+}
+
+/// Un essai de test complet effectué par un utilisateur pour un permis donné.
+model QuizAttempt {
+  id             String   @id @default(cuid())
+
+  // Lien vers l'utilisateur (suppression en cascade si le compte est supprimé)
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Identifie le permis concerné (ex: "b", "a1"...)
+  permisSlug     String
+  permisCode     String
+
+  // Résultat de l'essai
+  score          Int      // nombre de bonnes réponses
+  totalQuestions Int      // nombre total de questions posées
+  passed         Boolean  // true si le seuil de réussite (80%) était atteint
+
+  createdAt      DateTime @default(now())
+
+  // Index pour accélérer les requêtes "essais d'un utilisateur, du plus récent au plus ancien"
+  @@index([userId, createdAt])
+  @@map("quiz_attempt")
+}
+
+/// État d'abonnement premium de l'utilisateur. Une seule ligne par
+/// utilisateur : on la met à jour à chaque paiement réussi plutôt que
+/// d'en créer une nouvelle (l'historique des transactions vit dans Payment).
+model Subscription {
+  id        String             @id @default(cuid())
+  userId    String             @unique
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status    SubscriptionStatus @default(EXPIRED)
+  startedAt DateTime?
+  expiresAt DateTime?
+  updatedAt DateTime           @updatedAt
+
+  @@map("subscription")
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+}
+
+/// Trace chaque tentative de paiement Kkiapay, réussie ou non — utile
+/// pour le support client et pour éviter de traiter deux fois le même
+/// webhook (idempotence via kkiapayTransactionId, unique).
+model Payment {
+  id                   String        @id @default(cuid())
+  userId               String
+  user                 User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kkiapayTransactionId String        @unique
+  amount               Int
+  status               PaymentStatus @default(PENDING)
+  method                String?      // "mobile_money", "card"... renvoyé par Kkiapay
+  createdAt            DateTime      @default(now())
+
+  @@index([userId])
+  @@map("payment")
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
