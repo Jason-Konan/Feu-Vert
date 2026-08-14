@@ -577,7 +577,7 @@ export default async function Home() {
               <Reveal key={permis.code} delay={(index % 3) * 80}>
                 <Link
                   href={`/permis/${permis.id}`}
-                  className="group relative block aspect-[4/5] overflow-hidden rounded-xl border-2 border-[#1C1C1E] shadow-[6px_6px_0_#1C1C1E] transition-all duration-300 ease-in-out hover:-translate-y-1 hover:shadow-[6px_8px_0_#1C1C1E] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1C1C1E]"
+                  className="group relative block aspect-[4/5] overflow-hidden rounded-xl border-2 border-[#1C1C1E] shadow-[6px_6px_0_#1C1C1E] transition-all duration-500 ease-in-out hover:-translate-y-1 hover:shadow-[6px_8px_0_#1C1C1E] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1C1C1E]"
                 >
                   {permis.imageUrl ? (
                     <img
@@ -680,7 +680,7 @@ export default async function Home() {
                       src="images/young-woman-taxi-cotonou.png"
                       alt="Candidate révisant sur son téléphone"
                       loading="lazy"
-                      className="h-full w-full object-cover"
+                      className="h-full w-full object-cover transition-transform duration-500 ease-out hover:scale-105"
                     />
                   </div>
                   <div className="overflow-hidden rounded-xl border-2 border-[#1C1C1E] shadow-[4px_4px_0_#1C1C1E]">
@@ -688,7 +688,7 @@ export default async function Home() {
                       src="images/cotonou-uban-traffic.png"
                       alt="Carrefour urbain à Cotonou"
                       loading="lazy"
-                      className="h-full w-full object-cover"
+                      className="h-full w-full object-cover transition-transform duration-500 ease-out hover:scale-105"
                     />
                   </div>
                 </div>
@@ -697,7 +697,7 @@ export default async function Home() {
                     src="images/young_man_with_driving_license.png"
                     alt="Jeune conducteur avec son permis"
                     loading="lazy"
-                    className="h-full w-full object-cover"
+                    className="h-full w-full object-cover transition-transform duration-500 ease-out hover:scale-105"
                   />
                 </div>
               </div>

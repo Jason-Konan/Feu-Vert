@@ -67,7 +67,7 @@ export async function deleteLicenseType(id: string) {
 
   await prisma.licenseType.delete({ where: { id } });
   revalidatePath("/admin/permis");
-  return { success: true };
+  // just return nothing on success — matches `void | ActionResult`
 }
 
 export async function toggleLicenseTypeStatus(id: string, isActive: boolean) {

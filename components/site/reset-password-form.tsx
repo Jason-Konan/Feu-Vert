@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
-import StampStatus, { type StampState } from "@/components/site/stamp-status";
+import StampStatus, { StampState } from "./stamp-status";
 
 export default function ResetPasswordForm() {
   const router = useRouter();
