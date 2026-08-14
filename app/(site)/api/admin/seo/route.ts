@@ -2,9 +2,10 @@
 import { NextResponse } from "next/server";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
+import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-import { SITE_SETTINGS_ID, revalidateSiteSettings } from "@/lib/site-settings";
+import prisma from "@/lib/prisma";
+import { SITE_SETTINGS_ID } from "@/lib/site-settings";
 
 const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads", "seo");
 const ALLOWED_TYPES = [
@@ -87,7 +88,15 @@ export async function POST(request: Request) {
       );
     }
 
-    const data: Record<string, unknown> = {
+    const data: {
+      siteName: string;
+      title: string;
+      description: string;
+      keywords: string | null;
+      logoUrl?: string;
+      faviconUrl?: string;
+      ogImageUrl?: string;
+    } = {
       siteName,
       title,
       description,
@@ -117,7 +126,7 @@ export async function POST(request: Request) {
 
     // Invalide le cache serveur : le nouveau titre/logo/favicon apparaît
     // sur le site dès la prochaine requête, sans redéploiement.
-    revalidateSiteSettings();
+    revalidatePath("/", "layout");
 
     return NextResponse.json({ ok: true, settings });
   } catch (err) {
