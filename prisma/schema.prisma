@@ -24,6 +24,7 @@ model User {
 
 // Relation ajoutée : historique des essais de test de l'utilisateur
   quizAttempts  QuizAttempt[]
+  contactMessages ContactMessage[]
 role String?
 	banned Boolean?
 	banReason String?
@@ -151,4 +152,149 @@ enum PaymentStatus {
   PENDING
   SUCCESS
   FAILED
+}
+
+enum QuestionDifficulty {
+  FACILE
+  MOYEN
+  DIFFICILE
+}
+
+model LicenseType {
+  id          String   @id @default(cuid())
+  code        String   @unique // Ex: "A", "B", "C", "D"
+  name        String   // Ex: "Permis A - Moto"
+  description String?  @db.Text
+  imageUrl    String?
+  minAge      Int?
+  isActive    Boolean  @default(true)
+  order       Int      @default(0)
+
+  courses     Course[]
+  tests       Test[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("license_types")
+}
+
+model Course {
+  id            String      @id @default(cuid())
+  title         String
+  slug          String      @unique
+  description   String?     @db.Text
+  coverImageUrl String?
+  order         Int         @default(0)
+  isPublished   Boolean     @default(false)
+
+  licenseTypeId String
+  licenseType   LicenseType @relation(fields: [licenseTypeId], references: [id], onDelete: Cascade)
+
+  lessons       Lesson[]
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([licenseTypeId])
+  @@map("courses")
+}
+
+model Lesson {
+  id          String   @id @default(cuid())
+  title       String
+  content     String   @db.Text // HTML généré par l'éditeur riche
+  order       Int      @default(0)
+  duration    Int?     // durée estimée en minutes
+  isPublished Boolean  @default(true)
+
+  courseId    String
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([courseId])
+  @@map("lessons")
+}
+
+model Test {
+  id            String      @id @default(cuid())
+  title         String
+  description   String?     @db.Text
+  durationMin   Int         @default(20)
+  passingScore  Int         @default(80) // en pourcentage
+  isPublished   Boolean     @default(false)
+
+  licenseTypeId String
+  licenseType   LicenseType @relation(fields: [licenseTypeId], references: [id], onDelete: Cascade)
+
+  questions     Question[]
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([licenseTypeId])
+  @@map("tests")
+}
+
+model Question {
+  id          String             @id @default(cuid())
+  text        String             @db.Text
+  imageUrl    String?
+  explanation String?            @db.Text
+  difficulty  QuestionDifficulty @default(MOYEN)
+  order       Int                @default(0)
+
+  testId      String
+  test        Test               @relation(fields: [testId], references: [id], onDelete: Cascade)
+
+  options     QuestionOption[]
+
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([testId])
+  @@map("questions")
+}
+
+model QuestionOption {
+  id         String   @id @default(cuid())
+  text       String
+  isCorrect  Boolean  @default(false)
+  order      Int      @default(0)
+
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+  @@map("question_options")
+}
+
+model ContactMessage {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  subject   String?
+  message   String
+  createdAt DateTime @default(now())
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("messages")
+}
+
+model SiteSettings {
+  id          String   @id @default("main")
+  siteName    String
+  title       String
+  description String
+  keywords    String?
+  logoUrl     String?
+  faviconUrl  String?
+  ogImageUrl  String?
+  updatedAt   DateTime @updatedAt
 }

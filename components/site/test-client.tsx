@@ -1,7 +1,6 @@
-// components/site/test-client.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import {
   CheckCircle2,
@@ -12,13 +11,18 @@ import {
   TrendingUp,
   LogIn,
   LayoutDashboard,
+  Loader2,
 } from "lucide-react";
-import { Choice, Question, QUESTIONS } from "@/lib/data/quiz";
+import { submitAnswer, finalizeQuizAttempt } from "@/lib/actions/quiz";
 
-const NOMBRE_DE_QUESTIONS = 10;
-const SEUIL_DE_REUSSITE = 0.8;
+type QuizOption = { id: string; text: string };
+type QuizQuestion = {
+  id: string;
+  text: string;
+  imageUrl: string | null;
+  options: QuizOption[];
+};
 
-/** Progression connue de l'utilisateur sur ce permis AVANT le test en cours. */
 type ProgressionUtilisateur = {
   totalEssais: number;
   dernierPourcentage: number;
@@ -26,124 +30,127 @@ type ProgressionUtilisateur = {
 } | null;
 
 type TestClientProps = {
-  permisSlug: string;
+  testId: string;
   permisCode: string;
+  passingScore: number; // en pourcentage, ex: 80
+  questions: QuizQuestion[];
   estConnecte: boolean;
   progressionInitiale: ProgressionUtilisateur;
 };
 
-function melanger<T>(tableau: T[]): T[] {
-  const copie = [...tableau];
-  for (let i = copie.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copie[i], copie[j]] = [copie[j], copie[i]];
-  }
-  return copie;
-}
+type ReponseState = {
+  selectedOptionId: string;
+  isCorrect: boolean;
+  correctOptionIds: string[];
+  explanation: string | null;
+};
 
 export function TestClient({
-  permisSlug,
+  testId,
   permisCode,
+  passingScore,
+  questions,
   estConnecte,
   progressionInitiale,
 }: TestClientProps) {
-  const [questions, setQuestions] = useState<Question[] | null>(null);
   const [indexCourant, setIndexCourant] = useState(0);
-  const [choixSelectionne, setChoixSelectionne] = useState<Choice["id"] | null>(
-    null,
-  );
-  const [reponses, setReponses] = useState<Record<string, Choice["id"]>>({});
+  const [reponses, setReponses] = useState<Record<string, ReponseState>>({});
   const [estTermine, setEstTermine] = useState(false);
+  const [resultatFinal, setResultatFinal] = useState<{
+    score: number;
+    totalQuestions: number;
+    passed: boolean;
+  } | null>(null);
+  const [erreur, setErreur] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
 
-  // On garde une copie LOCALE de la progression : elle sert de point de
-  // comparaison ("avant ce test") et ne doit pas bouger même après l'envoi
-  // du nouvel essai à l'API — sinon on comparerait le score à lui-même.
+  // Copie figée : sert de point de comparaison "avant ce test".
   const [progressionAvant] = useState(progressionInitiale);
 
-  useEffect(() => {
-    setQuestions(melanger(QUESTIONS).slice(0, NOMBRE_DE_QUESTIONS));
-  }, []);
+  const question = questions[indexCourant];
+  const reponseCourante = question ? reponses[question.id] : undefined;
+  const aRepondu = !!reponseCourante;
+  const derniereQuestion = indexCourant === questions.length - 1;
 
-  const question = questions?.[indexCourant];
-  const aRepondu = choixSelectionne !== null;
-  const derniereQuestion = questions
-    ? indexCourant === questions.length - 1
-    : false;
+  function selectionnerChoix(optionId: string) {
+    if (aRepondu || !question || isPending) return;
+    setErreur(null);
 
-  const score = useMemo(() => {
-    if (!questions) return 0;
-    return questions.reduce((total, q) => {
-      return reponses[q.id] === q.correctChoiceId ? total + 1 : total;
-    }, 0);
-  }, [questions, reponses]);
+    startTransition(async () => {
+      const result = await submitAnswer(testId, question.id, optionId);
 
-  // Enregistrement de l'essai en base — uniquement utile si connecté, mais
-  // l'API elle-même vérifie déjà la session (401 sinon), donc pas besoin
-  // de dupliquer la condition ici.
-  useEffect(() => {
-    if (!estTermine || !questions || !estConnecte) return;
+      if ("error" in result) {
+        setErreur(result.error);
+        return;
+      }
 
-    const aReussi = score / questions.length >= SEUIL_DE_REUSSITE;
-
-    fetch("/api/quiz-attempts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        permisSlug,
-        permisCode,
-        score,
-        totalQuestions: questions.length,
-        passed: aReussi,
-      }),
-    }).catch((err) => {
-      console.error("Échec de l'enregistrement de l'essai :", err);
+      setReponses((prev) => ({
+        ...prev,
+        [question.id]: {
+          selectedOptionId: optionId,
+          isCorrect: result.isCorrect,
+          correctOptionIds: result.correctOptionIds,
+          explanation: result.explanation,
+        },
+      }));
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [estTermine]);
-
-  function selectionnerChoix(choiceId: Choice["id"]) {
-    if (aRepondu || !question) return;
-    setChoixSelectionne(choiceId);
-    setReponses((prev) => ({ ...prev, [question.id]: choiceId }));
   }
 
   function questionSuivante() {
     if (derniereQuestion) {
-      setEstTermine(true);
+      terminerTest();
       return;
     }
     setIndexCourant((i) => i + 1);
-    setChoixSelectionne(null);
+  }
+
+  function terminerTest() {
+    setErreur(null);
+    startTransition(async () => {
+      const answers = Object.fromEntries(
+        Object.entries(reponses).map(([qid, r]) => [qid, r.selectedOptionId]),
+      );
+
+      const result = await finalizeQuizAttempt(testId, permisCode, answers);
+
+      if ("error" in result) {
+        setErreur(result.error);
+        return;
+      }
+
+      setResultatFinal(result);
+      setEstTermine(true);
+    });
   }
 
   function recommencer() {
-    setQuestions(melanger(QUESTIONS).slice(0, NOMBRE_DE_QUESTIONS));
     setIndexCourant(0);
-    setChoixSelectionne(null);
     setReponses({});
     setEstTermine(false);
+    setResultatFinal(null);
+    setErreur(null);
   }
 
-  if (!questions) {
+  if (questions.length === 0) {
     return (
-      <div className="flex flex-col items-center gap-3 rounded-2xl border border-slate-200 bg-white p-12 text-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#235C43] border-t-transparent" />
-        <p className="text-sm font-medium text-slate-500">
-          Préparation du test…
+      <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center">
+        <p className="text-sm font-medium text-slate-600">
+          Ce test ne contient aucune question pour le moment.
         </p>
       </div>
     );
   }
 
-  if (estTermine) {
-    const pourcentage = Math.round((score / questions.length) * 100);
-    const aReussi = score / questions.length >= SEUIL_DE_REUSSITE;
+  if (estTermine && resultatFinal) {
+    const pourcentage = Math.round(
+      (resultatFinal.score / resultatFinal.totalQuestions) * 100,
+    );
 
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center sm:p-10">
         <span
           className={`mx-auto flex h-16 w-16 items-center justify-center rounded-2xl text-white ${
-            aReussi ? "bg-[#235C43]" : "bg-[#A6402B]"
+            resultatFinal.passed ? "bg-[#235C43]" : "bg-[#A6402B]"
           }`}
         >
           <Trophy className="h-8 w-8" />
@@ -153,23 +160,22 @@ export function TestClient({
           Résultat du test · Permis {permisCode}
         </p>
         <h2 className="mt-2 font-[family-name:var(--font-display)] text-4xl font-bold tracking-tight text-slate-900">
-          {score} / {questions.length}
+          {resultatFinal.score} / {resultatFinal.totalQuestions}
         </h2>
         <p
           className={`mt-1 text-lg font-semibold ${
-            aReussi ? "text-[#235C43]" : "text-[#A6402B]"
+            resultatFinal.passed ? "text-[#235C43]" : "text-[#A6402B]"
           }`}
         >
           {pourcentage}% de bonnes réponses
         </p>
 
         <p className="mx-auto mt-4 max-w-md text-sm leading-relaxed text-slate-600">
-          {aReussi
+          {resultatFinal.passed
             ? "Belle performance : vous êtes sur la bonne voie pour l'examen officiel."
             : "Encore un peu d'entraînement et ce sera acquis. Revoyez les thèmes qui vous ont posé problème."}
         </p>
 
-        {/* ------------------- SECTION PROGRESSION ------------------- */}
         <SectionProgression
           estConnecte={estConnecte}
           progressionAvant={progressionAvant}
@@ -184,12 +190,6 @@ export function TestClient({
             <RotateCcw className="h-4 w-4 transition-transform group-hover:-rotate-45" />
             Refaire un test
           </button>
-          <Link
-            href={`/permis/${permisSlug}/cours`}
-            className="inline-flex items-center gap-2 rounded-full border border-slate-300 px-6 py-3 text-sm font-semibold text-slate-700 transition-colors hover:border-[#235C43]/30 hover:text-[#235C43]"
-          >
-            Revoir les cours
-          </Link>
         </div>
       </div>
     );
@@ -214,17 +214,30 @@ export function TestClient({
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#235C43]">
-          {question.theme}
-        </p>
-        <h2 className="mt-2 font-[family-name:var(--font-display)] text-2xl font-bold leading-snug tracking-tight text-slate-900 sm:text-3xl">
-          {question.question}
+        <h2 className="font-[family-name:var(--font-display)] text-2xl font-bold leading-snug tracking-tight text-slate-900 sm:text-3xl">
+          {question.text}
         </h2>
 
+        {question.imageUrl && (
+          <img
+            src={question.imageUrl}
+            alt=""
+            className="mt-4 max-h-64 rounded-xl border border-slate-200 object-contain"
+          />
+        )}
+
+        {erreur && (
+          <p className="mt-4 rounded-lg bg-[#A6402B]/10 px-3 py-2 text-sm font-medium text-[#A6402B]">
+            {erreur}
+          </p>
+        )}
+
         <div className="mt-6 flex flex-col gap-3">
-          {question.choices.map((choix) => {
-            const estSelectionne = choixSelectionne === choix.id;
-            const estCorrect = choix.id === question.correctChoiceId;
+          {question.options.map((option) => {
+            const estSelectionne =
+              reponseCourante?.selectedOptionId === option.id;
+            const estCorrect =
+              reponseCourante?.correctOptionIds.includes(option.id) ?? false;
 
             let styleClasse =
               "border-slate-200 bg-white hover:border-[#235C43]/30 hover:bg-[#235C43]/[0.03]";
@@ -241,17 +254,12 @@ export function TestClient({
 
             return (
               <button
-                key={choix.id}
-                onClick={() => selectionnerChoix(choix.id)}
-                disabled={aRepondu}
+                key={option.id}
+                onClick={() => selectionnerChoix(option.id)}
+                disabled={aRepondu || isPending}
                 className={`flex items-center justify-between gap-3 rounded-xl border p-4 text-left text-sm font-medium text-slate-800 transition-colors disabled:cursor-default ${styleClasse}`}
               >
-                <span className="flex items-center gap-3">
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-slate-300 text-xs font-semibold uppercase text-slate-500">
-                    {choix.id}
-                  </span>
-                  {choix.label}
-                </span>
+                <span>{option.text}</span>
 
                 {aRepondu && estCorrect && (
                   <CheckCircle2 className="h-5 w-5 shrink-0 text-[#235C43]" />
@@ -264,13 +272,20 @@ export function TestClient({
           })}
         </div>
 
-        {aRepondu && (
+        {isPending && !aRepondu && (
+          <div className="mt-4 flex items-center gap-2 text-sm text-slate-500">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Vérification…
+          </div>
+        )}
+
+        {aRepondu && reponseCourante.explanation && (
           <div className="mt-6 rounded-xl bg-[#EEECE4] p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">
               Explication
             </p>
             <p className="mt-1.5 text-sm leading-relaxed text-slate-700">
-              {question.explication}
+              {reponseCourante.explanation}
             </p>
           </div>
         )}
@@ -279,10 +294,17 @@ export function TestClient({
           <div className="mt-6 flex justify-end">
             <button
               onClick={questionSuivante}
-              className="group inline-flex items-center gap-2 rounded-full bg-[#1B1D1F] px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#235C43]"
+              disabled={isPending}
+              className="group inline-flex items-center gap-2 rounded-full bg-[#1B1D1F] px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#235C43] disabled:opacity-60"
             >
-              {derniereQuestion ? "Voir mon résultat" : "Question suivante"}
-              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+              {isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  {derniereQuestion ? "Voir mon résultat" : "Question suivante"}
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                </>
+              )}
             </button>
           </div>
         )}
@@ -291,10 +313,6 @@ export function TestClient({
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Sous-composant : affiche soit la progression (connecté), soit une   */
-/*  invitation à se connecter. Extrait à part pour respecter le DRY et  */
-/*  garder le rendu du résultat lisible.                                */
 /* ------------------------------------------------------------------ */
 type SectionProgressionProps = {
   estConnecte: boolean;
@@ -307,8 +325,6 @@ function SectionProgression({
   progressionAvant,
   pourcentageActuel,
 }: SectionProgressionProps) {
-  // Utilisateur non connecté : on l'invite à créer un compte pour suivre
-  // sa progression, sans bloquer l'accès au résultat du test lui-même.
   if (!estConnecte) {
     return (
       <div className="mx-auto mt-6 flex max-w-md flex-col items-center gap-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5">
@@ -317,7 +333,7 @@ function SectionProgression({
           au fil de vos essais.
         </p>
         <Link
-          href="/sign-in"
+          href="/login"
           className="inline-flex items-center gap-2 rounded-full bg-[#235C43] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#1B1D1F]"
         >
           <LogIn className="h-4 w-4" />
@@ -327,8 +343,6 @@ function SectionProgression({
     );
   }
 
-  // Connecté, mais c'est son tout premier essai sur ce permis : rien à
-  // comparer, on l'invite simplement vers son tableau de bord.
   if (!progressionAvant) {
     return (
       <div className="mx-auto mt-6 max-w-md rounded-xl bg-[#EEECE4] p-5">

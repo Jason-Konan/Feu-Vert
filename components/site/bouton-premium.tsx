@@ -61,7 +61,7 @@ export function BoutonPremium() {
 
   function ouvrirPaiement() {
     if (!session?.user) {
-      router.push("/sign-in");
+      router.push("/login");
       return;
     }
 

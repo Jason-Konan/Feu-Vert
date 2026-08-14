@@ -2,9 +2,6 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
-import Navbar from "@/components/layout/navbar";
-import Footer from "@/components/layout/footer";
-import Script from "next/script";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -21,7 +18,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: {
     default: "Feu Vert — Préparation au code de la route au Bénin",
-    template: "%s — FeuVert",
+    template: "%s",
   },
   description:
     "Préparez le code de la route auto et moto au Bénin avec des séries de questions et des corrections claires, adaptées aux routes d'ici.",
@@ -34,6 +31,7 @@ export default function RootLayout({
 }>) {
   return (
     <html
+      data-scroll-behavior="smooth"
       lang="en"
       className={cn(
         "h-full",
@@ -45,13 +43,7 @@ export default function RootLayout({
       )}
     >
       <body className="min-h-full flex flex-col">
-        <Navbar />
         <main className="flex-1">{children}</main>
-        <Footer />
-        <Script
-          src="https://cdn.kkiapay.me/k.js"
-          strategy="afterInteractive"
-        />{" "}
       </body>
     </html>
   );
