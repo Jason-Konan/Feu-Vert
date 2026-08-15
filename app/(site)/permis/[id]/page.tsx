@@ -113,7 +113,7 @@ export default async function PermisDetailPage({ params }: PageProps) {
             <div className="mt-8">
               <Etiquette light>Catégorie {lt.code}</Etiquette>
               <h1 className="mt-4 font-[family-name:var(--font-display)] text-4xl sm:text-5xl font-bold leading-[1.02] tracking-tight text-white">
-                Permis {lt.name}
+                {lt.name}
               </h1>
             </div>
 
