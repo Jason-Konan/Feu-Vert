@@ -38,6 +38,7 @@ export async function createCourse(input: CourseInput): Promise<ActionResult> {
       data: { ...data, slug, coverImageUrl: data.coverImageUrl || null },
     });
     revalidatePath("/admin/cours");
+    revalidatePath(`/permis/${data.licenseTypeId}/cours`);
     return { success: true, id: course.id };
   } catch {
     return { error: "Erreur lors de la création du cours" };
@@ -62,6 +63,13 @@ export async function updateCourse(
     });
     revalidatePath("/admin/cours");
     revalidatePath(`/admin/cours/${id}`);
+    revalidatePath(`/permis/${data.licenseTypeId}/cours`);
+    revalidatePath(`/permis/${data.licenseTypeId}/cours/${slug}`);
+    // Si le permis d'origine a changé (déplacement du cours vers une autre
+    // catégorie), on invalide aussi l'ancienne liste pour qu'il en disparaisse.
+    if (current && current.licenseTypeId !== data.licenseTypeId) {
+      revalidatePath(`/permis/${current.licenseTypeId}/cours`);
+    }
     return { success: true };
   } catch {
     return { error: "Erreur lors de la mise à jour du cours" };
@@ -71,8 +79,10 @@ export async function updateCourse(
 export async function deleteCourse(id: string): Promise<ActionResult> {
   try {
     await requireAdmin();
-    await prisma.course.delete({ where: { id } });
+    const course = await prisma.course.delete({ where: { id } });
     revalidatePath("/admin/cours");
+    revalidatePath(`/permis/${course.licenseTypeId}/cours`);
+    revalidatePath(`/permis/${course.licenseTypeId}/cours/${course.slug}`);
     return { success: true };
   } catch {
     return { error: "Erreur lors de la suppression du cours" };
@@ -85,8 +95,13 @@ export async function togglePublishCourse(
 ): Promise<ActionResult> {
   try {
     await requireAdmin();
-    await prisma.course.update({ where: { id }, data: { isPublished } });
+    const course = await prisma.course.update({
+      where: { id },
+      data: { isPublished },
+    });
     revalidatePath("/admin/cours");
+    revalidatePath(`/permis/${course.licenseTypeId}/cours`);
+    revalidatePath(`/permis/${course.licenseTypeId}/cours/${course.slug}`);
     return { success: true };
   } catch {
     return { error: "Erreur lors de la mise à jour du statut de publication" };
@@ -94,6 +109,15 @@ export async function togglePublishCourse(
 }
 
 // ----- Leçons -----
+// Une leçon modifie l'affichage de la page de détail du cours auquel elle
+// appartient : on récupère le cours (et son licenseTypeId/slug) pour
+// revalider la bonne page publique.
+
+async function revalidateCoursePublicPages(courseId: string) {
+  const course = await prisma.course.findUnique({ where: { id: courseId } });
+  if (!course) return;
+  revalidatePath(`/permis/${course.licenseTypeId}/cours/${course.slug}`);
+}
 
 export async function createLesson(input: LessonInput): Promise<ActionResult> {
   try {
@@ -101,6 +125,7 @@ export async function createLesson(input: LessonInput): Promise<ActionResult> {
     const data = lessonSchema.parse(input);
     const lesson = await prisma.lesson.create({ data });
     revalidatePath(`/admin/cours/${data.courseId}`);
+    await revalidateCoursePublicPages(data.courseId);
     return { success: true, id: lesson.id };
   } catch {
     return { error: "Erreur lors de la création de la leçon" };
@@ -116,6 +141,7 @@ export async function updateLesson(
     const data = lessonSchema.parse(input);
     await prisma.lesson.update({ where: { id }, data });
     revalidatePath(`/admin/cours/${data.courseId}`);
+    await revalidateCoursePublicPages(data.courseId);
     return { success: true };
   } catch {
     return { error: "Erreur lors de la mise à jour de la leçon" };
@@ -130,6 +156,7 @@ export async function deleteLesson(
     await requireAdmin();
     await prisma.lesson.delete({ where: { id } });
     revalidatePath(`/admin/cours/${courseId}`);
+    await revalidateCoursePublicPages(courseId);
     return { success: true };
   } catch {
     return { error: "Erreur lors de la suppression de la leçon" };
@@ -148,6 +175,7 @@ export async function reorderLessons(
       ),
     );
     revalidatePath(`/admin/cours/${courseId}`);
+    await revalidateCoursePublicPages(courseId);
     return { success: true };
   } catch {
     return { error: "Erreur lors de la réorganisation des leçons" };

@@ -10,6 +10,7 @@ import {
 } from "@/lib/validations/validations";
 import { revalidatePath } from "next/cache";
 import type { ActionResult } from "./types";
+
 // ----- Tests -----
 
 export async function createTest(input: TestInput): Promise<ActionResult> {
@@ -17,6 +18,7 @@ export async function createTest(input: TestInput): Promise<ActionResult> {
   const data = testSchema.parse(input);
   const test = await prisma.test.create({ data });
   revalidatePath("/admin/tests");
+  revalidatePath(`/permis/${data.licenseTypeId}/tests`);
   return { success: true, id: test.id };
 }
 
@@ -26,16 +28,23 @@ export async function updateTest(
 ): Promise<ActionResult> {
   await requireAdmin();
   const data = testSchema.parse(input);
+  const current = await prisma.test.findUnique({ where: { id } });
   await prisma.test.update({ where: { id }, data });
   revalidatePath("/admin/tests");
   revalidatePath(`/admin/tests/${id}`);
+  revalidatePath(`/permis/${data.licenseTypeId}/tests`);
+  revalidatePath(`/permis/${data.licenseTypeId}/tests/${id}`);
+  if (current && current.licenseTypeId !== data.licenseTypeId) {
+    revalidatePath(`/permis/${current.licenseTypeId}/tests`);
+  }
   return { success: true };
 }
 
 export async function deleteTest(id: string): Promise<ActionResult> {
   await requireAdmin();
-  await prisma.test.delete({ where: { id } });
+  const test = await prisma.test.delete({ where: { id } });
   revalidatePath("/admin/tests");
+  revalidatePath(`/permis/${test.licenseTypeId}/tests`);
   return { success: true };
 }
 
@@ -54,13 +63,26 @@ export async function togglePublishTest(
     }
   }
 
-  await prisma.test.update({ where: { id }, data: { isPublished } });
+  const test = await prisma.test.update({
+    where: { id },
+    data: { isPublished },
+  });
   revalidatePath("/admin/tests");
   revalidatePath(`/admin/tests/${id}`);
+  revalidatePath(`/permis/${test.licenseTypeId}/tests`);
+  revalidatePath(`/permis/${test.licenseTypeId}/tests/${id}`);
   return { success: true };
 }
 
 // ----- Questions -----
+// Une question modifie la page publique de passage du test : on récupère
+// le test (licenseTypeId) pour revalider le bon chemin public.
+
+async function revalidateTestPublicPages(testId: string) {
+  const test = await prisma.test.findUnique({ where: { id: testId } });
+  if (!test) return;
+  revalidatePath(`/permis/${test.licenseTypeId}/tests/${testId}`);
+}
 
 export async function createQuestion(
   input: QuestionInput,
@@ -87,6 +109,7 @@ export async function createQuestion(
   });
 
   revalidatePath(`/admin/tests/${data.testId}`);
+  await revalidateTestPublicPages(data.testId);
   return { success: true, id: question.id };
 }
 
@@ -119,6 +142,7 @@ export async function updateQuestion(
   ]);
 
   revalidatePath(`/admin/tests/${data.testId}`);
+  await revalidateTestPublicPages(data.testId);
   return { success: true };
 }
 
@@ -129,5 +153,6 @@ export async function deleteQuestion(
   await requireAdmin();
   await prisma.question.delete({ where: { id } });
   revalidatePath(`/admin/tests/${testId}`);
+  await revalidateTestPublicPages(testId);
   return { success: true };
 }

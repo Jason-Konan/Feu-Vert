@@ -30,6 +30,7 @@ import prisma from "@/lib/prisma";
 import Image from "next/image";
 import { LicenseIcon } from "@hugeicons/core-free-icons";
 import { TiptapContentRenderer } from "@/components/site/tiptap-content-renderer";
+import { LicenseTypeGrid } from "@/components/site/license-type-grid";
 
 /* ─────────────────────────────────────────────────────────────────── */
 /*  Direction artistique — v5 "Signalisation"                         */
@@ -572,55 +573,7 @@ export default async function Home() {
             </p>
           </Reveal>
 
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {licenseTypes.map((permis, index) => (
-              <Reveal key={permis.code} delay={(index % 3) * 80}>
-                <Link
-                  href={`/permis/${permis.id}`}
-                  className="group relative block aspect-[4/5] overflow-hidden rounded-xl border-2 border-[#1C1C1E] shadow-[6px_6px_0_#1C1C1E] transition-all duration-500 ease-in-out hover:-translate-y-1 hover:shadow-[6px_8px_0_#1C1C1E] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1C1C1E]"
-                >
-                  {permis.imageUrl ? (
-                    <img
-                      src={permis.imageUrl}
-                      alt=""
-                      loading="lazy"
-                      className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
-                    />
-                  ) : (
-                    // Fallback si pas d'image uploadée
-                    <div className="absolute inset-0 bg-[#235C43]" />
-                  )}
-
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#1C1C1E]/92 via-[#1C1C1E]/20 to-transparent" />
-
-                  <span className="absolute left-3 top-3 flex h-9 w-9 items-center justify-center rounded-lg bg-[#F5C800] text-[#1C1C1E]">
-                    <Car className="h-5 w-5" />
-                  </span>
-                  <span className="absolute right-3 top-3 rounded-md bg-[#1C1C1E] text-[#F5C800] px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide">
-                    {permis.code}
-                  </span>
-
-                  <div className="absolute inset-x-0 bottom-0 p-5">
-                    <p className="font-[family-name:var(--font-display)] text-2xl font-semibold text-white">
-                      Permis {permis.code}
-                    </p>
-                    <p className="mt-0.5 text-sm font-medium text-white/75">
-                      {permis.name}
-                    </p>
-                    <div className="mt-2 text-xs text-white/55 leading-relaxed opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 ease-in-out">
-                      {permis.description && (
-                        <Reveal delay={80}>
-                          <TiptapContentRenderer
-                            html={truncate(stripHtml(permis.description), 120)}
-                          />
-                        </Reveal>
-                      )}
-                    </div>
-                  </div>
-                </Link>
-              </Reveal>
-            ))}
-          </div>
+          <LicenseTypeGrid variant="home" />
         </div>
         <LigneDivision />
       </section>
